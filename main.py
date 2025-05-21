@@ -118,6 +118,128 @@ def request_max_year():
         request_max_year()
 
 
+def clear_filters():
+    global filters
+    filters = {
+        "Ražotājs": None,
+        "Minimālā cena": None,
+        "Maksimālā cena": None,
+        "Minimālais gads": None,
+        "Maksimālais gads": None,
+    }
+    print("Visi filtri ir notīrīti.")
+    run_program()
+
+
+def extract_unseen_ads():
+    global filters, headers
+    mfg_elem = filters["Ražotājs"]
+    mfg_name = mfg_elem.text.strip() if hasattr(mfg_elem, "text") else str(mfg_elem)
+    seen_file = f"{mfg_name}.txt"
+    seen = set()
+    if os.path.exists(seen_file):
+        with open(seen_file, "r", encoding="utf-8") as f:
+            for line in f:
+                seen.add(line.split(" | ")[-1].strip())
+
+    print("========================================")
+    print("Neskatītie sludinājumi:")
+    print("========================================\n")
+    adrese = base_url + filters["Ražotājs"]["href"]
+    url = adrese + "filter/"
+    params = {
+        "topt[8][min]": filters["Minimālā cena"],
+        "topt[8][max]": filters["Maksimālā cena"],
+        "topt[18][min]": filters["Minimālais gads"],
+        "topt[18][max]": filters["Maksimālais gads"],
+    }
+    # remove unset filters
+    params = {k: v for k, v in params.items() if v is not None}
+
+    session.post(url, data=params, headers=headers)
+    page_number = 1
+    while True:
+        if page_number == 1:
+            page_url = url
+        else:
+            page_url = f"{url}page{page_number}.html"
+
+        resp = session.get(page_url, headers=headers)
+        if resp.status_code != 200:
+            print(
+                f"Failed to fetch page {page_number}. Status code: {resp.status_code}"
+            )
+            break
+
+        lapas_saturs = BeautifulSoup(resp.content, "html.parser")
+        tr_elements = lapas_saturs.find_all("tr", id=re.compile(r"^tr_"))
+        if not tr_elements:
+            break
+
+        for tr in tr_elements:
+            td_elements = tr.find_all("td")[2:]  # skipping checkbox and image
+            td_texts = []
+            index = 0
+            first_a_tag = None
+            for td in td_elements:
+                a_tag = td.find("a")
+                if a_tag:
+                    lines = [
+                        line.strip()
+                        for line in a_tag.get_text().splitlines()
+                        if line.strip()
+                    ]
+                    if lines:
+                        first_line = lines[0]
+                        if index == 0:
+                            first_a_tag = a_tag
+                            td_texts.append(first_line + "...")
+                        else:
+                            td_texts.append(first_line)
+                    else:
+                        td_texts.append("")
+                    index += 1
+                else:
+                    td_texts.append(td.get_text(strip=True))
+
+                index += 1
+            if first_a_tag:
+                full_url = base_url + first_a_tag["href"]
+            else:
+                continue
+            if full_url in seen:
+                continue
+            td_texts.append(full_url)
+            line = " | ".join(td_texts)
+
+            print(line)
+            print()
+
+            timestamp = datetime.now().strftime("%d.%m.%Y %H.%M.%S")
+            entry = f"{timestamp} | {line}"
+            with open(seen_file, "a", encoding="utf-8") as f:
+                f.write(entry + "\n")
+
+            seen.add(full_url)
+
+        page_number += 1
+    run_program()
+
+
+def list_filters():
+    print("========================================")
+    if any(v is not None for v in filters.values()):
+        print("Pašreizējie filtri:\n")
+        for key, value in filters.items():
+            if value is not None:
+                print(
+                    f"{key}: {value.text.strip() if hasattr(value, 'text') else value}"
+                )
+    else:
+        print("Nav izvēlēts neviens filtrs.")
+    print("========================================\n")
+
+
 def request_manufacturers_data():
     global manufacturers
     lapa = requests.get(url)
