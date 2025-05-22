@@ -7,7 +7,7 @@ from datetime import datetime
 session = requests.Session()
 headers = {
     "User-Agent": "Mozilla/5.0",
-    "Referer": "https://www.ss.lv/lv/transport/cars/jaguar/",
+    "Referer": "https://www.ss.lv/",
 }
 
 url = "https://www.ss.lv/lv/transport/cars/"
