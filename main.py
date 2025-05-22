@@ -3,6 +3,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from data_structures import CustomDict, CustomList, CustomSet
 
 session = requests.Session()
 headers = {
@@ -12,14 +13,16 @@ headers = {
 
 url = "https://www.ss.lv/lv/transport/cars/"
 base_url = "https://www.ss.lv"
-manufacturers = []
-filters = {
-    "Ražotājs": None,
-    "Minimālā cena": None,
-    "Maksimālā cena": None,
-    "Minimālais gads": None,
-    "Maksimālais gads": None,
-}
+manufacturers = CustomList()
+filters = CustomDict(
+    {
+        "Ražotājs": None,
+        "Minimālā cena": None,
+        "Maksimālā cena": None,
+        "Minimālais gads": None,
+        "Maksimālais gads": None,
+    }
+)
 
 
 def run_program():
@@ -120,13 +123,15 @@ def request_max_year():
 
 def clear_filters():
     global filters
-    filters = {
-        "Ražotājs": None,
-        "Minimālā cena": None,
-        "Maksimālā cena": None,
-        "Minimālais gads": None,
-        "Maksimālais gads": None,
-    }
+    filters = CustomDict(
+        {
+            "Ražotājs": None,
+            "Minimālā cena": None,
+            "Maksimālā cena": None,
+            "Minimālais gads": None,
+            "Maksimālais gads": None,
+        }
+    )
     print("Visi filtri ir notīrīti.")
     run_program()
 
@@ -136,7 +141,7 @@ def extract_unseen_ads():
     mfg_elem = filters["Ražotājs"]
     mfg_name = mfg_elem.text.strip() if hasattr(mfg_elem, "text") else str(mfg_elem)
     seen_file = f"{mfg_name}.txt"
-    seen = set()
+    seen = CustomSet()
     if os.path.exists(seen_file):
         with open(seen_file, "r", encoding="utf-8") as f:
             for line in f:
@@ -147,16 +152,23 @@ def extract_unseen_ads():
     print("========================================\n")
     adrese = base_url + filters["Ražotājs"]["href"]
     url = adrese + "filter/"
-    params = {
-        "topt[8][min]": filters["Minimālā cena"],
-        "topt[8][max]": filters["Maksimālā cena"],
-        "topt[18][min]": filters["Minimālais gads"],
-        "topt[18][max]": filters["Maksimālais gads"],
-    }
-    # remove unset filters
-    params = {k: v for k, v in params.items() if v is not None}
+    params = CustomDict()
+    if filters["Minimālā cena"] is not None:
+        params["topt[8][min]"] = filters["Minimālā cena"]
+    if filters["Maksimālā cena"] is not None:
+        params["topt[8][max]"] = filters["Maksimālā cena"]
+    if filters["Minimālais gads"] is not None:
+        params["topt[18][min]"] = filters["Minimālais gads"]
+    if filters["Maksimālais gads"] is not None:
+        params["topt[18][max]"] = filters["Maksimālais gads"]
 
-    session.post(url, data=params, headers=headers)
+    filtered = CustomDict()
+    for k, v in params.items():
+        if v is not None:
+            filtered[k] = v
+    params = filtered
+
+    session.post(url, data=dict(params.items()), headers=headers)
     page_number = 1
     while True:
         if page_number == 1:
